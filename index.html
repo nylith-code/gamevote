@@ -42,6 +42,16 @@
       align-items: center;
       justify-content: space-between;
       margin-bottom: 0.75rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 1rem;
+      box-shadow: 0 14px 44px rgba(2, 6, 23, 0.26);
+    }
+
+    .status-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      min-width: 0;
     }
 
     .status-pill {
@@ -49,12 +59,12 @@
       gap: 0.45rem;
       align-items: center;
       width: fit-content;
-      padding: 0.35rem 0.7rem;
+      padding: 0.32rem 0.65rem;
       border: 1px solid rgba(148, 163, 184, 0.25);
       border-radius: 999px;
       color: #cbd5e1;
       background: rgba(15, 23, 42, 0.9);
-      font-size: 0.9rem;
+      font-size: 0.86rem;
       min-width: 0;
     }
 
@@ -66,8 +76,28 @@
 
     .version {
       color: #94a3b8;
-      font-size: 0.85rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      opacity: 0.85;
       white-space: nowrap;
+    }
+
+    #resetButton {
+      width: auto;
+      margin: 0;
+      padding: 0.42rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 999px;
+      background: rgba(30, 41, 59, 0.72);
+      color: #e2e8f0;
+      font-size: 0.84rem;
+      line-height: 1;
+      box-shadow: none;
+    }
+
+    #resetButton:hover {
+      background: rgba(51, 65, 85, 0.9);
+      border-color: rgba(226, 232, 240, 0.35);
     }
 
     .dot {
@@ -196,6 +226,7 @@
 
     @media (max-width: 420px) {
       .status-card { flex-direction: column; }
+      .status-left { justify-content: space-between; }
       .status-pill, #resetButton { width: 100%; }
       .small { display: none; }
       .chat-log { max-height: 18rem; }
@@ -205,8 +236,10 @@
 <body>
   <main class="container">
     <article class="status-card" id="statusCard">
-      <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Starting...</span></span>
-      <span class="version">v0.3</span>
+      <div class="status-left">
+        <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Starting...</span></span>
+        <span class="version">v0.3</span>
+      </div>
       <button id="resetButton" class="contrast">Clear votes</button>
     </article>
 

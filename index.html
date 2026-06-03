@@ -47,13 +47,6 @@
       box-shadow: 0 14px 44px rgba(2, 6, 23, 0.26);
     }
 
-    .status-left {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.65rem;
-      min-width: 0;
-    }
-
     .status-pill {
       display: inline-flex;
       gap: 0.45rem;
@@ -68,15 +61,20 @@
       min-width: 0;
     }
 
-    .status-pill span:last-child {
+    #statusText {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .version {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 0.2rem;
+      padding-left: 0.65rem;
+      border-left: 1px solid rgba(148, 163, 184, 0.28);
       color: #94a3b8;
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       letter-spacing: 0.04em;
       opacity: 0.85;
       white-space: nowrap;
@@ -226,7 +224,6 @@
 
     @media (max-width: 420px) {
       .status-card { flex-direction: column; }
-      .status-left { justify-content: space-between; }
       .status-pill, #resetButton { width: 100%; }
       .small { display: none; }
       .chat-log { max-height: 18rem; }
@@ -236,10 +233,7 @@
 <body>
   <main class="container">
     <article class="status-card" id="statusCard">
-      <div class="status-left">
-        <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Starting...</span></span>
-        <span class="version">v0.3</span>
-      </div>
+      <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Starting...</span><span class="version">v0.4</span></span>
       <button id="resetButton" class="contrast">Clear votes</button>
     </article>
 

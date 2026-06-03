@@ -233,7 +233,7 @@
 <body>
   <main class="container">
     <article class="status-card" id="statusCard">
-      <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Starting...</span><span class="version">v0.4</span></span>
+      <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Starting...</span><span class="version">v0.5</span></span>
       <button id="resetButton" class="contrast">Clear votes</button>
     </article>
 
@@ -306,8 +306,9 @@
       { name: "Mass Effect 2", aliases: ["me2"] },
       { name: "Mass Effect", aliases: ["me1"] },
       { name: "Dragon Age: Origins", aliases: ["dao", "dragon age origins"] },
-      { name: "Dark Souls", aliases: ["ds1", "darksouls"] },
-      { name: "Dark Souls III", aliases: ["ds3", "dark souls 3"] },
+      { name: "Dark Souls", aliases: ["ds", "ds1", "dks", "dks1", "dark souls 1", "dark souls remastered", "darksouls"] },
+      { name: "Dark Souls II", aliases: ["ds2", "dks2", "dark souls 2", "scholar of the first sin", "sotfs"] },
+      { name: "Dark Souls III", aliases: ["ds3", "dks3", "dark souls 3"] },
       { name: "Bloodborne", aliases: ["bb"] },
       { name: "Elden Ring", aliases: ["er"] },
       { name: "Sekiro: Shadows Die Twice", aliases: ["sekiro"] },
@@ -544,6 +545,10 @@
     };
 
     const entries = buildSearchEntries(GAME_LIST);
+    const prefixEntries = [...entries].sort((a, b) => b.normalized.length - a.normalized.length);
+    const compactPrefixEntries = [...entries]
+      .filter((entry) => entry.compact.length >= 4)
+      .sort((a, b) => b.compact.length - a.compact.length || b.normalized.length - a.normalized.length);
     const fuse = new Fuse(entries, {
       includeScore: true,
       ignoreLocation: true,
@@ -639,6 +644,12 @@
       const exact = entries.find((entry) => entry.normalized === input || entry.compact === compactInput);
       if (exact) return { name: exact.name, score: 1 };
 
+      const leading = prefixEntries.find((entry) => isLeadingPhraseMatch(input, entry));
+      if (leading) return { name: leading.name, score: 0.98 };
+
+      const compactLeading = compactPrefixEntries.find((entry) => compactInput.startsWith(entry.compact));
+      if (compactLeading) return { name: compactLeading.name, score: 0.96 };
+
       const results = fuse.search(input).slice(0, 8);
       let best = null;
       for (const result of results) {
@@ -654,6 +665,11 @@
       const len = input.length;
       const threshold = len <= 4 ? 0.96 : len <= 7 ? 0.82 : 0.72;
       return best.score >= threshold ? best : null;
+    }
+
+    function isLeadingPhraseMatch(input, entry) {
+      if (input.startsWith(`${entry.normalized} `)) return true;
+      return false;
     }
 
     function buildSearchEntries(games) {

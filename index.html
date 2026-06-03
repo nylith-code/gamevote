@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Vote Results</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+  <style>
+    :root {
+      --pico-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --pico-border-radius: 1rem;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 34rem),
+        radial-gradient(circle at top right, rgba(168, 85, 247, 0.18), transparent 30rem),
+        #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    main.container {
+      max-width: 1180px;
+      width: min(100%, 1180px);
+      padding: clamp(0.5rem, 2vw, 2rem);
+    }
+
+    article, .panel {
+      background: rgba(15, 23, 42, 0.84);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      box-shadow: 0 24px 80px rgba(2, 6, 23, 0.35);
+      margin: 0;
+      padding: clamp(0.75rem, 2vw, 1.5rem);
+      min-width: 0;
+    }
+
+    .status-card {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      gap: 0.45rem;
+      align-items: center;
+      width: fit-content;
+      padding: 0.35rem 0.7rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 999px;
+      color: #cbd5e1;
+      background: rgba(15, 23, 42, 0.9);
+      font-size: 0.9rem;
+      min-width: 0;
+    }
+
+    .status-pill span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 999px;
+      background: #f59e0b;
+      box-shadow: 0 0 18px currentColor;
+    }
+
+    .connected .dot { background: #22c55e; color: #22c55e; }
+    .disconnected .dot { background: #ef4444; color: #ef4444; }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    .single {
+      margin-top: 0.75rem;
+    }
+
+    h2 {
+      margin-bottom: 0.25rem;
+      font-size: clamp(1.05rem, 4vw, 1.45rem);
+    }
+
+    .result {
+      display: grid;
+      grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+      gap: 0.55rem;
+      align-items: center;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    }
+
+    .result:last-child { border-bottom: 0; }
+
+    .rank {
+      display: grid;
+      place-items: center;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 0.55rem;
+      background: rgba(56, 189, 248, 0.16);
+      color: #7dd3fc;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .result strong {
+      display: block;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      line-height: 1.15;
+    }
+
+    .bar-wrap {
+      overflow: hidden;
+      height: 0.45rem;
+      margin-top: 0.35rem;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.18);
+    }
+
+    .bar {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #38bdf8, #a855f7);
+      transition: width 180ms ease;
+    }
+
+    .count {
+      min-width: 2rem;
+      text-align: right;
+      color: #f8fafc;
+      font-weight: 800;
+    }
+
+    .muted { color: #94a3b8; }
+    .small { font-size: 0.84rem; }
+
+    .chat-log {
+      max-height: 28rem;
+      overflow: auto;
+      font-size: 0.9rem;
+    }
+
+    .chat-line {
+      display: grid;
+      grid-template-columns: 8rem 1fr;
+      gap: 0.7rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .chat-line b {
+      overflow: hidden;
+      color: #7dd3fc;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .match-tag {
+      display: inline-block;
+      margin-left: 0.35rem;
+      padding: 0.05rem 0.35rem;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, 0.14);
+      color: #86efac;
+      font-size: 0.72rem;
+      vertical-align: middle;
+    }
+
+    .unmatched-tag {
+      background: rgba(245, 158, 11, 0.14);
+      color: #fcd34d;
+    }
+
+    @media (max-width: 860px) {
+      .status-card { align-items: stretch; }
+      .chat-line { grid-template-columns: 1fr; gap: 0.15rem; }
+    }
+
+    @media (max-width: 420px) {
+      .status-card { flex-direction: column; }
+      .status-pill, #resetButton { width: 100%; }
+      .small { display: none; }
+      .chat-log { max-height: 18rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <article class="status-card" id="statusCard">
+      <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Starting...</span></span>
+      <button id="resetButton" class="contrast">Clear votes</button>
+    </article>
+
+    <section class="grid-two">
+      <article>
+        <h2>Matched Games</h2>
+        <p class="small muted">Top 5 canonical game matches.</p>
+        <div id="matchedResults"></div>
+      </article>
+      <article>
+        <h2>Repeated Unmatched</h2>
+        <p class="small muted">Top 5 repeated unmatched normalized messages.</p>
+        <div id="unmatchedResults"></div>
+      </article>
+    </section>
+
+    <section class="single">
+      <article>
+        <h2>Recent Votes</h2>
+        <div class="chat-log" id="chatLog"></div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const CHANNEL = "stormfall33";
+    const TWITCH_IRC_WS = "wss://irc-ws.chat.twitch.tv:443";
+
+    const GAME_LIST = [
+      { name: "The Legend of Zelda: Breath of the Wild", aliases: ["botw", "breath of the wild", "zelda botw", "loz botw"] },
+      { name: "The Legend of Zelda: Ocarina of Time", aliases: ["oot", "ocarina", "zelda oot", "loz oot", "zelda 64"] },
+      { name: "The Legend of Zelda: Majora's Mask", aliases: ["majora", "majoras mask", "mm", "zelda mm"] },
+      { name: "The Legend of Zelda: Tears of the Kingdom", aliases: ["totk", "tears of the kingdom", "zelda totk"] },
+      { name: "The Legend of Zelda: A Link to the Past", aliases: ["alttp", "link to the past", "zelda 3"] },
+      { name: "The Legend of Zelda: The Wind Waker", aliases: ["wind waker", "ww", "zelda wind waker"] },
+      { name: "The Legend of Zelda: Twilight Princess", aliases: ["twilight princess", "tp", "zelda tp"] },
+      { name: "Super Mario 64", aliases: ["sm64", "mario 64"] },
+      { name: "Super Mario Bros. 3", aliases: ["smb3", "mario 3"] },
+      { name: "Super Mario World", aliases: ["smw", "mario world"] },
+      { name: "Super Mario Odyssey", aliases: ["mario odyssey", "smo"] },
+      { name: "Super Mario Galaxy", aliases: ["mario galaxy", "smg"] },
+      { name: "Super Mario Galaxy 2", aliases: ["mario galaxy 2", "smg2"] },
+      { name: "Super Mario Bros.", aliases: ["smb", "mario bros", "super mario"] },
+      { name: "Mario Kart 8 Deluxe", aliases: ["mk8", "mk8d", "mario kart 8"] },
+      { name: "Mario Kart 64", aliases: ["mk64"] },
+      { name: "Super Smash Bros. Melee", aliases: ["melee", "ssbm", "smash melee"] },
+      { name: "Super Smash Bros. Ultimate", aliases: ["ultimate", "ssbu", "smash ultimate"] },
+      { name: "Metroid Prime", aliases: ["prime", "metroid 3d"] },
+      { name: "Super Metroid", aliases: ["sm", "metroid snes"] },
+      { name: "Chrono Trigger", aliases: ["ct"] },
+      { name: "Final Fantasy VI", aliases: ["ff6", "ffvi", "final fantasy 6"] },
+      { name: "Final Fantasy VII", aliases: ["ff7", "ffvii", "final fantasy 7"] },
+      { name: "Final Fantasy IX", aliases: ["ff9", "ffix", "final fantasy 9"] },
+      { name: "Final Fantasy X", aliases: ["ff10", "ffx", "final fantasy 10"] },
+      { name: "Final Fantasy XIV", aliases: ["ff14", "ffxiv", "final fantasy 14"] },
+      { name: "Final Fantasy Tactics", aliases: ["fft"] },
+      { name: "Baldur's Gate 3", aliases: ["bg3", "baldurs gate 3", "baulders gate 3"] },
+      { name: "Baldur's Gate II: Shadows of Amn", aliases: ["bg2", "baldurs gate 2"] },
+      { name: "Planescape: Torment", aliases: ["planescape", "pst"] },
+      { name: "Disco Elysium", aliases: ["disco"] },
+      { name: "Divinity: Original Sin II", aliases: ["dos2", "divinity 2", "original sin 2"] },
+      { name: "The Elder Scrolls V: Skyrim", aliases: ["skyrim", "tes5", "elder scrolls 5"] },
+      { name: "The Elder Scrolls III: Morrowind", aliases: ["morrowind", "tes3"] },
+      { name: "The Elder Scrolls IV: Oblivion", aliases: ["oblivion", "tes4"] },
+      { name: "Fallout: New Vegas", aliases: ["new vegas", "fnv"] },
+      { name: "Fallout 3", aliases: ["fo3"] },
+      { name: "Fallout 4", aliases: ["fo4"] },
+      { name: "Fallout", aliases: ["fallout 1"] },
+      { name: "Fallout 2", aliases: ["fo2"] },
+      { name: "Mass Effect 2", aliases: ["me2"] },
+      { name: "Mass Effect", aliases: ["me1"] },
+      { name: "Dragon Age: Origins", aliases: ["dao", "dragon age origins"] },
+      { name: "Dark Souls", aliases: ["ds1", "darksouls"] },
+      { name: "Dark Souls III", aliases: ["ds3", "dark souls 3"] },
+      { name: "Bloodborne", aliases: ["bb"] },
+      { name: "Elden Ring", aliases: ["er"] },
+      { name: "Sekiro: Shadows Die Twice", aliases: ["sekiro"] },
+      { name: "Demon's Souls", aliases: ["demons souls", "des"] },
+      { name: "Hollow Knight", aliases: ["hk"] },
+      { name: "Celeste", aliases: [] },
+      { name: "Hades", aliases: [] },
+      { name: "Stardew Valley", aliases: ["stardew"] },
+      { name: "Minecraft", aliases: ["mc", "mine craft"] },
+      { name: "Terraria", aliases: [] },
+      { name: "Undertale", aliases: [] },
+      { name: "Outer Wilds", aliases: [] },
+      { name: "Return of the Obra Dinn", aliases: ["obra dinn"] },
+      { name: "The Witness", aliases: [] },
+      { name: "Portal", aliases: [] },
+      { name: "Portal 2", aliases: [] },
+      { name: "Half-Life", aliases: ["half life", "hl1"] },
+      { name: "Half-Life 2", aliases: ["half life 2", "hl2"] },
+      { name: "Counter-Strike", aliases: ["counter strike", "cs 1.6", "cs16"] },
+      { name: "Counter-Strike: Global Offensive", aliases: ["csgo", "cs go", "counter strike global offensive"] },
+      { name: "Counter-Strike 2", aliases: ["cs2", "counter strike 2"] },
+      { name: "Team Fortress 2", aliases: ["tf2"] },
+      { name: "Dota 2", aliases: ["dota"] },
+      { name: "League of Legends", aliases: ["lol", "league"] },
+      { name: "World of Warcraft", aliases: ["wow", "warcraft mmo"] },
+      { name: "Warcraft III: Reign of Chaos", aliases: ["wc3", "warcraft 3"] },
+      { name: "StarCraft", aliases: ["sc1", "starcraft brood war", "brood war"] },
+      { name: "StarCraft II: Wings of Liberty", aliases: ["sc2", "starcraft 2"] },
+      { name: "Diablo", aliases: ["diablo 1"] },
+      { name: "Diablo II", aliases: ["d2", "diablo 2"] },
+      { name: "Diablo III", aliases: ["d3", "diablo 3"] },
+      { name: "Overwatch", aliases: ["ow"] },
+      { name: "Hearthstone", aliases: [] },
+      { name: "Fortnite", aliases: [] },
+      { name: "PUBG: Battlegrounds", aliases: ["pubg", "playerunknowns battlegrounds"] },
+      { name: "Apex Legends", aliases: ["apex"] },
+      { name: "Valorant", aliases: [] },
+      { name: "Rocket League", aliases: ["rl"] },
+      { name: "Among Us", aliases: [] },
+      { name: "Grand Theft Auto V", aliases: ["gta5", "gta v", "grand theft auto 5"] },
+      { name: "Grand Theft Auto: San Andreas", aliases: ["gta sa", "san andreas"] },
+      { name: "Grand Theft Auto: Vice City", aliases: ["gta vc", "vice city"] },
+      { name: "Grand Theft Auto III", aliases: ["gta3", "gta iii"] },
+      { name: "Red Dead Redemption", aliases: ["rdr"] },
+      { name: "Red Dead Redemption 2", aliases: ["rdr2"] },
+      { name: "Metal Gear Solid", aliases: ["mgs", "mgs1"] },
+      { name: "Metal Gear Solid 2: Sons of Liberty", aliases: ["mgs2"] },
+      { name: "Metal Gear Solid 3: Snake Eater", aliases: ["mgs3", "snake eater"] },
+      { name: "Metal Gear Solid V: The Phantom Pain", aliases: ["mgsv", "mgs5", "phantom pain"] },
+      { name: "Resident Evil", aliases: ["re1"] },
+      { name: "Resident Evil 2", aliases: ["re2"] },
+      { name: "Resident Evil 4", aliases: ["re4"] },
+      { name: "Silent Hill", aliases: ["sh1"] },
+      { name: "Silent Hill 2", aliases: ["sh2"] },
+      { name: "Doom", aliases: ["doom 1993"] },
+      { name: "Doom II", aliases: ["doom 2"] },
+      { name: "Doom Eternal", aliases: [] },
+      { name: "Quake", aliases: [] },
+      { name: "Quake III Arena", aliases: ["quake 3", "q3a"] },
+      { name: "Wolfenstein 3D", aliases: ["wolf3d"] },
+      { name: "Halo: Combat Evolved", aliases: ["halo ce", "halo 1"] },
+      { name: "Halo 2", aliases: [] },
+      { name: "Halo 3", aliases: [] },
+      { name: "Call of Duty 4: Modern Warfare", aliases: ["cod4", "modern warfare"] },
+      { name: "Call of Duty 2", aliases: ["cod2"] },
+      { name: "BioShock", aliases: [] },
+      { name: "BioShock Infinite", aliases: [] },
+      { name: "System Shock 2", aliases: ["ss2"] },
+      { name: "Deus Ex", aliases: [] },
+      { name: "Dishonored", aliases: [] },
+      { name: "Dishonored 2", aliases: [] },
+      { name: "Prey", aliases: ["prey 2017"] },
+      { name: "Thief: The Dark Project", aliases: ["thief 1"] },
+      { name: "Thief II: The Metal Age", aliases: ["thief 2"] },
+      { name: "Hitman: Blood Money", aliases: ["blood money"] },
+      { name: "GoldenEye 007", aliases: ["goldeneye"] },
+      { name: "Perfect Dark", aliases: [] },
+      { name: "The Last of Us", aliases: ["tlou", "last of us"] },
+      { name: "The Last of Us Part II", aliases: ["tlou2", "last of us 2"] },
+      { name: "Uncharted 2: Among Thieves", aliases: ["uncharted 2", "u2"] },
+      { name: "Uncharted 4: A Thief's End", aliases: ["uncharted 4", "u4"] },
+      { name: "God of War", aliases: ["god of war 2018", "gow"] },
+      { name: "God of War II", aliases: ["god of war 2", "gow2"] },
+      { name: "God of War III", aliases: ["god of war 3", "gow3"] },
+      { name: "Shadow of the Colossus", aliases: ["sotc"] },
+      { name: "Ico", aliases: [] },
+      { name: "Okami", aliases: ["Ōkami"] },
+      { name: "Kingdom Hearts", aliases: ["kh1"] },
+      { name: "Kingdom Hearts II", aliases: ["kh2", "kingdom hearts 2"] },
+      { name: "Persona 4", aliases: ["p4", "persona 4 golden", "p4g"] },
+      { name: "Persona 5", aliases: ["p5", "persona 5 royal", "p5r"] },
+      { name: "EarthBound", aliases: ["mother 2"] },
+      { name: "Mother 3", aliases: [] },
+      { name: "Pokemon Red and Blue", aliases: ["pokemon red", "pokemon blue", "pokemon gen 1", "red blue"] },
+      { name: "Pokemon Gold and Silver", aliases: ["pokemon gold", "pokemon silver", "pokemon gen 2"] },
+      { name: "Pokemon HeartGold and SoulSilver", aliases: ["hgss", "heartgold", "soulsilver"] },
+      { name: "Pokemon Black and White", aliases: ["pokemon bw", "black white"] },
+      { name: "Animal Crossing: New Horizons", aliases: ["acnh", "new horizons"] },
+      { name: "Animal Crossing", aliases: [] },
+      { name: "Fire Emblem Awakening", aliases: ["fe awakening", "fea"] },
+      { name: "Advance Wars", aliases: [] },
+      { name: "Phoenix Wright: Ace Attorney", aliases: ["ace attorney", "phoenix wright"] },
+      { name: "Tetris", aliases: [] },
+      { name: "Pac-Man", aliases: ["pacman"] },
+      { name: "Ms. Pac-Man", aliases: ["ms pacman"] },
+      { name: "Pong", aliases: [] },
+      { name: "Space Invaders", aliases: [] },
+      { name: "Donkey Kong", aliases: [] },
+      { name: "Donkey Kong Country", aliases: ["dkc"] },
+      { name: "Sonic the Hedgehog", aliases: ["sonic 1"] },
+      { name: "Sonic the Hedgehog 2", aliases: ["sonic 2"] },
+      { name: "Sonic Adventure 2", aliases: ["sa2"] },
+      { name: "Castlevania: Symphony of the Night", aliases: ["sotn", "symphony of the night"] },
+      { name: "Mega Man 2", aliases: ["megaman 2"] },
+      { name: "Mega Man X", aliases: ["mmx"] },
+      { name: "Ninja Gaiden", aliases: [] },
+      { name: "Contra", aliases: [] },
+      { name: "Street Fighter II", aliases: ["sf2", "street fighter 2"] },
+      { name: "Street Fighter IV", aliases: ["sf4", "street fighter 4"] },
+      { name: "Mortal Kombat", aliases: ["mk1"] },
+      { name: "Mortal Kombat II", aliases: ["mk2", "mortal kombat 2"] },
+      { name: "Tekken 3", aliases: [] },
+      { name: "Marvel vs. Capcom 2: New Age of Heroes", aliases: ["mvc2", "marvel vs capcom 2"] },
+      { name: "Soulcalibur II", aliases: ["soulcalibur 2", "sc2"] },
+      { name: "Tony Hawk's Pro Skater 2", aliases: ["thps2", "tony hawk 2"] },
+      { name: "Tony Hawk's Pro Skater", aliases: ["thps", "tony hawk"] },
+      { name: "Tony Hawk's Pro Skater 3", aliases: ["thps3", "tony hawk 3"] },
+      { name: "Guitar Hero", aliases: [] },
+      { name: "Rock Band", aliases: [] },
+      { name: "Dance Dance Revolution", aliases: ["ddr"] },
+      { name: "PaRappa the Rapper", aliases: ["parappa"] },
+      { name: "Katamari Damacy", aliases: ["katamari"] },
+      { name: "Ikaruga", aliases: [] },
+      { name: "F-Zero GX", aliases: ["fzero gx", "f zero gx"] },
+      { name: "Gran Turismo", aliases: ["gt1"] },
+      { name: "Gran Turismo 3: A-Spec", aliases: ["gt3"] },
+      { name: "Gran Turismo 4", aliases: ["gt4"] },
+      { name: "Burnout 3: Takedown", aliases: ["burnout 3"] },
+      { name: "Crazy Taxi", aliases: [] },
+      { name: "Ridge Racer", aliases: [] },
+      { name: "Wipeout", aliases: [] },
+      { name: "Wii Sports", aliases: [] },
+      { name: "The Sims", aliases: ["sims 1"] },
+      { name: "The Sims 2", aliases: ["sims 2"] },
+      { name: "The Sims 3", aliases: ["sims 3"] },
+      { name: "SimCity", aliases: [] },
+      { name: "SimCity 2000", aliases: [] },
+      { name: "RollerCoaster Tycoon", aliases: ["rct"] },
+      { name: "Civilization", aliases: ["civ 1"] },
+      { name: "Civilization II", aliases: ["civ 2"] },
+      { name: "Civilization IV", aliases: ["civ 4"] },
+      { name: "Civilization V", aliases: ["civ 5"] },
+      { name: "Civilization VI", aliases: ["civ 6"] },
+      { name: "Age of Empires II", aliases: ["aoe2", "age 2"] },
+      { name: "Age of Empires", aliases: ["aoe"] },
+      { name: "Command & Conquer: Red Alert", aliases: ["red alert", "cnc red alert"] },
+      { name: "Command & Conquer", aliases: ["cnc", "c&c"] },
+      { name: "XCOM: Enemy Unknown", aliases: ["xcom eu", "enemy unknown"] },
+      { name: "X-COM: UFO Defense", aliases: ["ufo defense", "xcom ufo defense"] },
+      { name: "Heroes of Might and Magic III", aliases: ["homm3", "heroes 3"] },
+      { name: "Into the Breach", aliases: [] },
+      { name: "Slay the Spire", aliases: ["sts"] },
+      { name: "FTL: Faster Than Light", aliases: ["ftl"] },
+      { name: "Papers, Please", aliases: ["papers please"] },
+      { name: "The Stanley Parable", aliases: ["stanley parable"] },
+      { name: "Journey", aliases: [] },
+      { name: "Braid", aliases: [] },
+      { name: "Limbo", aliases: [] },
+      { name: "Inside", aliases: [] },
+      { name: "Spelunky", aliases: [] },
+      { name: "Spelunky 2", aliases: [] },
+      { name: "Shovel Knight", aliases: [] },
+      { name: "Hotline Miami", aliases: [] },
+      { name: "Cuphead", aliases: [] },
+      { name: "Dead Cells", aliases: [] },
+      { name: "The Binding of Isaac: Rebirth", aliases: ["binding of isaac", "isaac", "boi"] },
+      { name: "Vampire Survivors", aliases: [] },
+      { name: "Factorio", aliases: [] },
+      { name: "RimWorld", aliases: ["rimworld"] },
+      { name: "Dwarf Fortress", aliases: ["df"] },
+      { name: "Path of Exile", aliases: ["poe"] },
+      { name: "Monster Hunter: World", aliases: ["mhw", "monster hunter world"] },
+      { name: "Monster Hunter Rise", aliases: ["mhr", "mhrise"] },
+      { name: "The Witcher 3: Wild Hunt", aliases: ["witcher 3", "tw3"] },
+      { name: "Cyberpunk 2077", aliases: ["cyberpunk"] },
+      { name: "Yakuza 0", aliases: [] },
+      { name: "Nier: Automata", aliases: ["nier automata"] },
+      { name: "NieR Replicant", aliases: ["nier replicant"] },
+      { name: "Xenoblade Chronicles", aliases: ["xenoblade"] },
+      { name: "Xenogears", aliases: [] },
+      { name: "Suikoden II", aliases: ["suikoden 2"] },
+      { name: "Secret of Mana", aliases: [] },
+      { name: "Dragon Quest VIII", aliases: ["dq8", "dragon quest 8"] },
+      { name: "Dragon Quest XI", aliases: ["dq11", "dragon quest 11"] },
+      { name: "Kingdom Come: Deliverance", aliases: ["kcd"] },
+      { name: "Star Wars: Knights of the Old Republic", aliases: ["kotor", "knights of the old republic"] },
+      { name: "Star Wars: TIE Fighter", aliases: ["tie fighter"] },
+      { name: "Star Wars Jedi Knight: Dark Forces II", aliases: ["jedi knight", "dark forces 2"] },
+      { name: "Tomb Raider", aliases: [] },
+      { name: "Prince of Persia: The Sands of Time", aliases: ["sands of time"] },
+      { name: "Prince of Persia", aliases: [] },
+      { name: "Assassin's Creed II", aliases: ["ac2", "assassins creed 2"] },
+      { name: "Assassin's Creed IV: Black Flag", aliases: ["black flag", "ac4"] },
+      { name: "Batman: Arkham Asylum", aliases: ["arkham asylum"] },
+      { name: "Batman: Arkham City", aliases: ["arkham city"] },
+      { name: "Far Cry 3", aliases: [] },
+      { name: "Max Payne", aliases: [] },
+      { name: "Max Payne 2: The Fall of Max Payne", aliases: ["max payne 2"] },
+      { name: "Devil May Cry", aliases: ["dmc1"] },
+      { name: "Devil May Cry 3: Dante's Awakening", aliases: ["dmc3", "devil may cry 3"] },
+      { name: "Bayonetta", aliases: [] },
+      { name: "Nioh", aliases: [] },
+      { name: "Dead Space", aliases: [] },
+      { name: "Left 4 Dead", aliases: ["l4d"] },
+      { name: "Left 4 Dead 2", aliases: ["l4d2"] },
+      { name: "Battlefield 1942", aliases: ["bf1942"] },
+      { name: "Battlefield 2", aliases: ["bf2"] },
+      { name: "Gears of War", aliases: [] },
+      { name: "Gears of War 2", aliases: [] },
+      { name: "Tunic", aliases: [] },
+      { name: "Pizza Tower", aliases: [] },
+      { name: "Hi-Fi Rush", aliases: ["hifi rush"] },
+      { name: "Sea of Stars", aliases: [] },
+      { name: "Dave the Diver", aliases: [] }
+    ];
+
+    const state = {
+      socket: null,
+      reconnectTimer: null,
+      reconnectDelay: 1500,
+      votesByUser: new Map(),
+      recent: []
+    };
+
+    const entries = buildSearchEntries(GAME_LIST);
+    const fuse = new Fuse(entries, {
+      includeScore: true,
+      ignoreLocation: true,
+      threshold: 0.34,
+      keys: ["value", "compact"]
+    });
+
+    document.getElementById("resetButton").addEventListener("click", resetVotes);
+
+    connect();
+    render();
+
+    function connect() {
+      clearTimeout(state.reconnectTimer);
+      setStatus("Connecting...", "");
+
+      const nick = `justinfan${Math.floor(Math.random() * 900000 + 100000)}`;
+      const socket = new WebSocket(TWITCH_IRC_WS);
+      state.socket = socket;
+
+      socket.addEventListener("open", () => {
+        state.reconnectDelay = 1500;
+        socket.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
+        socket.send("PASS SCHMOOPIIE");
+        socket.send(`NICK ${nick}`);
+        socket.send(`JOIN #${CHANNEL}`);
+        setStatus(`Connected to #${CHANNEL}`, "connected");
+      });
+
+      socket.addEventListener("message", (event) => {
+        for (const line of String(event.data).split("\r\n")) {
+          if (!line) continue;
+          if (line.startsWith("PING")) {
+            socket.send("PONG :tmi.twitch.tv");
+            continue;
+          }
+          const parsed = parsePrivmsg(line);
+          if (parsed) recordVote(parsed.user, parsed.displayName, parsed.message);
+        }
+      });
+
+      socket.addEventListener("close", scheduleReconnect);
+      socket.addEventListener("error", () => {
+        setStatus("Connection error", "disconnected");
+        socket.close();
+      });
+    }
+
+    function scheduleReconnect() {
+      setStatus(`Disconnected. Reconnecting in ${Math.round(state.reconnectDelay / 1000)}s...`, "disconnected");
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = setTimeout(connect, state.reconnectDelay);
+      state.reconnectDelay = Math.min(state.reconnectDelay * 1.6, 15000);
+    }
+
+    function parsePrivmsg(line) {
+      const match = line.match(/^@([^ ]+) :([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$/);
+      if (!match) return null;
+      const tags = Object.fromEntries(match[1].split(";").map((tag) => {
+        const [key, value = ""] = tag.split("=");
+        return [key, value];
+      }));
+      return {
+        user: (tags["user-id"] || match[2]).toLowerCase(),
+        displayName: tags["display-name"] || match[2],
+        message: match[3]
+      };
+    }
+
+    function recordVote(userId, displayName, rawMessage) {
+      if (state.votesByUser.has(userId)) return;
+
+      const normalized = normalizeVoteText(rawMessage);
+      if (!normalized || normalized.length < 2) return;
+
+      const match = findGameMatch(normalized);
+      const vote = match
+        ? { kind: "matched", key: match.name, label: match.name, raw: rawMessage, score: match.score, displayName }
+        : { kind: "unmatched", key: normalized, label: titleCase(normalized), raw: rawMessage, score: null, displayName };
+
+      state.votesByUser.set(userId, vote);
+      state.recent.unshift(vote);
+      state.recent = state.recent.slice(0, 80);
+      render();
+    }
+
+    function findGameMatch(input) {
+      const compactInput = compact(input);
+      const exact = entries.find((entry) => entry.normalized === input || entry.compact === compactInput);
+      if (exact) return { name: exact.name, score: 1 };
+
+      const results = fuse.search(input).slice(0, 8);
+      let best = null;
+      for (const result of results) {
+        const entry = result.item;
+        const lev = similarity(input, entry.normalized);
+        const compactLev = similarity(compactInput, entry.compact);
+        const containsBonus = entry.normalized.includes(input) || input.includes(entry.normalized) ? 0.08 : 0;
+        const score = Math.max(lev, compactLev) + containsBonus - (result.score || 0) * 0.08;
+        if (!best || score > best.score) best = { name: entry.name, score };
+      }
+
+      if (!best) return null;
+      const len = input.length;
+      const threshold = len <= 4 ? 0.96 : len <= 7 ? 0.82 : 0.72;
+      return best.score >= threshold ? best : null;
+    }
+
+    function buildSearchEntries(games) {
+      const seen = new Set();
+      const searchEntries = [];
+      for (const game of games) {
+        const values = [game.name, ...game.aliases, stripEditionWords(game.name)];
+        for (const value of values) {
+          const normalized = normalizeVoteText(value);
+          if (!normalized) continue;
+          const key = `${game.name}:${normalized}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          searchEntries.push({ name: game.name, value, normalized, compact: compact(normalized) });
+        }
+      }
+      return searchEntries;
+    }
+
+    function normalizeVoteText(value) {
+      return String(value)
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/https?:\/\/\S+/gi, " ")
+        .replace(/^!vote\s+/i, "")
+        .replace(/^vote\s+/i, "")
+        .replace(/&/g, " and ")
+        .replace(/['’]/g, "")
+        .replace(/[^a-z0-9]+/gi, " ")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLowerCase();
+    }
+
+    function compact(value) {
+      return value.replace(/\b(the|a|an|of|and|to|part|edition|remaster|remastered|remake|game)\b/g, "").replace(/\s+/g, "");
+    }
+
+    function stripEditionWords(value) {
+      return value.replace(/\b(HD|Deluxe|Remastered|Remake|Definitive Edition|Game of the Year Edition)\b/gi, "");
+    }
+
+    function similarity(a, b) {
+      if (a === b) return 1;
+      if (!a || !b) return 0;
+      const distance = levenshtein(a, b);
+      return 1 - distance / Math.max(a.length, b.length);
+    }
+
+    function levenshtein(a, b) {
+      const prev = Array.from({ length: b.length + 1 }, (_, index) => index);
+      const curr = Array.from({ length: b.length + 1 }, () => 0);
+      for (let i = 1; i <= a.length; i += 1) {
+        curr[0] = i;
+        for (let j = 1; j <= b.length; j += 1) {
+          curr[j] = Math.min(
+            curr[j - 1] + 1,
+            prev[j] + 1,
+            prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+          );
+        }
+        for (let j = 0; j <= b.length; j += 1) prev[j] = curr[j];
+      }
+      return prev[b.length];
+    }
+
+    function resetVotes() {
+      state.votesByUser.clear();
+      state.recent = [];
+      render();
+    }
+
+    function render() {
+      const votes = [...state.votesByUser.values()];
+      const matched = tally(votes.filter((vote) => vote.kind === "matched"));
+      const unmatched = tally(votes.filter((vote) => vote.kind === "unmatched")).filter((row) => row.count > 1);
+
+      renderResults("matchedResults", matched.slice(0, 5));
+      renderResults("unmatchedResults", unmatched.slice(0, 5));
+      renderLog();
+    }
+
+    function tally(votes) {
+      const rows = new Map();
+      for (const vote of votes) {
+        const row = rows.get(vote.key) || { label: vote.label, count: 0 };
+        row.count += 1;
+        rows.set(vote.key, row);
+      }
+      return [...rows.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    }
+
+    function renderResults(id, rows) {
+      const container = document.getElementById(id);
+      if (!rows.length) {
+        container.innerHTML = `<p class="muted">No votes yet.</p>`;
+        return;
+      }
+      const max = Math.max(...rows.map((row) => row.count));
+      container.innerHTML = rows.map((row, index) => `
+        <div class="result">
+          <span class="rank">${index + 1}</span>
+          <div>
+            <strong>${escapeHtml(row.label)}</strong>
+            <div class="bar-wrap"><div class="bar" style="width:${Math.max(8, row.count / max * 100)}%"></div></div>
+          </div>
+          <span class="count">${row.count}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderLog() {
+      const log = document.getElementById("chatLog");
+      if (!state.recent.length) {
+        log.innerHTML = `<p class="muted">Waiting for chat votes...</p>`;
+        return;
+      }
+      log.innerHTML = state.recent.map((vote) => `
+        <div class="chat-line">
+          <b>${escapeHtml(vote.displayName)}</b>
+          <span>${escapeHtml(vote.raw)}
+            <span class="match-tag ${vote.kind === "unmatched" ? "unmatched-tag" : ""}">${vote.kind === "matched" ? escapeHtml(vote.label) : "unmatched"}</span>
+          </span>
+        </div>
+      `).join("");
+    }
+
+    function setStatus(text, className) {
+      document.getElementById("statusText").textContent = text;
+      document.getElementById("statusCard").className = `status-card ${className}`;
+    }
+
+    function titleCase(value) {
+      return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[char]);
+    }
+  </script>
+</body>
+</html>

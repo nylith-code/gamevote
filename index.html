@@ -504,7 +504,8 @@
       socket: null,
       reconnectTimer: null,
       reconnectDelay: 1500,
-      votesByUser: new Map(),
+      voteKeysByUser: new Map(),
+      votes: [],
       recent: []
     };
 
@@ -579,8 +580,6 @@
     }
 
     function recordVote(userId, displayName, rawMessage) {
-      if (state.votesByUser.has(userId)) return;
-
       const normalized = normalizeVoteText(rawMessage);
       if (!normalized || normalized.length < 2) return;
 
@@ -589,7 +588,13 @@
         ? { kind: "matched", key: match.name, label: match.name, raw: rawMessage, score: match.score, displayName }
         : { kind: "unmatched", key: normalized, label: titleCase(normalized), raw: rawMessage, score: null, displayName };
 
-      state.votesByUser.set(userId, vote);
+      const userVoteKeys = state.voteKeysByUser.get(userId) || new Set();
+      const userScopedKey = `${vote.kind}:${vote.key}`;
+      if (userVoteKeys.has(userScopedKey)) return;
+
+      userVoteKeys.add(userScopedKey);
+      state.voteKeysByUser.set(userId, userVoteKeys);
+      state.votes.push(vote);
       state.recent.unshift(vote);
       state.recent = state.recent.slice(0, 80);
       render();
@@ -682,13 +687,14 @@
     }
 
     function resetVotes() {
-      state.votesByUser.clear();
+      state.voteKeysByUser.clear();
+      state.votes = [];
       state.recent = [];
       render();
     }
 
     function render() {
-      const votes = [...state.votesByUser.values()];
+      const votes = state.votes;
       const matched = tally(votes.filter((vote) => vote.kind === "matched"));
       const unmatched = tally(votes.filter((vote) => vote.kind === "unmatched")).filter((row) => row.count > 1);
 
